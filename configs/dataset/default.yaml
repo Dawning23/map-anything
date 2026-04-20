@@ -12,6 +12,7 @@ defaults:
   - sailvos3d_wai: default
   - scannetpp_wai: default
   - spring_wai: default
+  - tartanground: default
   - tav2_wb_wai: default
   - unrealstereo4k_wai: default
 

@@ -226,7 +226,7 @@ def train(args):
         best_so_far = float("inf")
 
     if global_rank == 0 and args.output_dir is not None:
-        log_writer = SummaryWriter(log_dir=args.output_dir)
+        log_writer = SummaryWriter(log_dir=os.getenv("TENSORBOARD_LOG_PATH", args.output_dir))
     else:
         log_writer = None
 

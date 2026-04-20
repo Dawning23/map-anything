@@ -8,7 +8,7 @@ Base class for MapAnything datasets.
 """
 
 from typing import List, Tuple, Union
-
+import traceback
 import numpy as np
 import PIL
 import torch
@@ -630,6 +630,7 @@ class BaseDataset(EasyDataset):
             try:
                 return self._getitem_fn(idx)
             except Exception as e:
+                traceback.print_exc()
                 scene_idx = idx[0] if isinstance(idx, tuple) else idx
                 print(
                     f"Error in {type(self).__name__}.__getitem__ for scene_idx={scene_idx}: {e}"

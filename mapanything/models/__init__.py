@@ -20,7 +20,7 @@ from omegaconf import DictConfig, OmegaConf
 
 # Core models that are always available
 from mapanything.models.mapanything import (
-    MapAnything,
+    MapAnything, FishEyeMapAnything,
     MapAnythingAblations,
     ModularDUSt3R,
 )
@@ -145,6 +145,9 @@ MODEL_CONFIGS = {
     # Core models
     "mapanything": {
         "class": MapAnything,
+    },
+    "fisheyemapanything": {
+        "class": FishEyeMapAnything,
     },
     "mapanything_ablations": {
         "class": MapAnythingAblations,

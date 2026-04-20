@@ -174,3 +174,9 @@ cython_debug/
 
 # VSCode
 .vscode
+ckpt
+*.md
+traing_datasets
+fisheye_converter.py
+tartanground
+debug_by_vis

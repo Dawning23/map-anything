@@ -2183,3 +2183,151 @@ class MapAnything(nn.Module, PyTorchModelHubMixin):
         self._restore_original_geometric_input_config()
 
         return preds
+
+
+class FishEyeMapAnything(MapAnything):
+    "Modular MapAnything model class that supports input of images & optional geometric modalities (multiple reconstruction tasks)."
+
+    def __init__(
+        self,
+        name: str,
+        encoder_config: Dict,
+        info_sharing_config: Dict,
+        pred_head_config: Dict,
+        geometric_input_config: Dict,
+        fusion_norm_layer: Union[Type[nn.Module], Callable[..., nn.Module]] = partial(
+            nn.LayerNorm, eps=1e-6
+        ),
+        pretrained_checkpoint_path: str = None,
+        load_specific_pretrained_submodules: bool = False,
+        specific_pretrained_submodules: list = None,
+        torch_hub_force_reload: bool = False,
+        use_register_tokens_from_encoder: bool = False,
+        info_sharing_mlp_layer_str: str = "mlp",
+    ):
+        """
+        Multi-view model containing an image encoder fused with optional geometric modalities followed by a multi-view attention transformer and respective downstream heads.
+        The goal is to output scene representation.
+        The multi-view attention transformer also takes as input a scale token to predict the metric scaling factor for the predicted scene representation.
+
+        Args:
+            name (str): Name of the model.
+            encoder_config (Dict): Configuration for the encoder.
+            info_sharing_config (Dict): Configuration for the multi-view attention transformer.
+            pred_head_config (Dict): Configuration for the prediction heads.
+            geometric_input_config (Dict): Configuration for the input of optional geometric modalities.
+            fusion_norm_layer (Union[Type[nn.Module], Callable[..., nn.Module]]): Normalization layer to use after fusion (addition) of encoder and geometric modalities. (default: partial(nn.LayerNorm, eps=1e-6))
+            pretrained_checkpoint_path (str): Path to pretrained checkpoint. (default: None)
+            load_specific_pretrained_submodules (bool): Whether to load specific pretrained submodules. (default: False)
+            specific_pretrained_submodules (list): List of specific pretrained submodules to load. Must be provided when load_specific_pretrained_submodules is True. (default: None)
+            torch_hub_force_reload (bool): Whether to force reload the encoder from torch hub. (default: False)
+            use_register_tokens_from_encoder (bool): Whether to use register tokens from encoder. (default: False)
+            info_sharing_mlp_layer_str (str): Type of MLP layer to use in the multi-view transformer. Useful for DINO init of the multi-view transformer. Options: "mlp" or "swiglufused". (default: "mlp")
+        """
+        super(MapAnything, self).__init__()
+
+        # Initialize the attributes
+        self.name = name
+        self.encoder_config = encoder_config
+        self.info_sharing_config = info_sharing_config
+        self.pred_head_config = pred_head_config
+        self.geometric_input_config = geometric_input_config
+        self.pretrained_checkpoint_path = pretrained_checkpoint_path
+        self.load_specific_pretrained_submodules = load_specific_pretrained_submodules
+        self.specific_pretrained_submodules = specific_pretrained_submodules
+        self.torch_hub_force_reload = torch_hub_force_reload
+        self.use_register_tokens_from_encoder = use_register_tokens_from_encoder
+        self.info_sharing_mlp_layer_str = info_sharing_mlp_layer_str
+        self.class_init_args = {
+            "name": self.name,
+            "encoder_config": self.encoder_config,
+            "info_sharing_config": self.info_sharing_config,
+            "pred_head_config": self.pred_head_config,
+            "geometric_input_config": self.geometric_input_config,
+            "pretrained_checkpoint_path": self.pretrained_checkpoint_path,
+            "load_specific_pretrained_submodules": self.load_specific_pretrained_submodules,
+            "specific_pretrained_submodules": self.specific_pretrained_submodules,
+            "torch_hub_force_reload": self.torch_hub_force_reload,
+            "use_register_tokens_from_encoder": self.use_register_tokens_from_encoder,
+            "info_sharing_mlp_layer_str": self.info_sharing_mlp_layer_str,
+        }
+
+        # Get relevant parameters from the configs
+        self.info_sharing_type = info_sharing_config["model_type"]
+        self.info_sharing_return_type = info_sharing_config["model_return_type"]
+        self.pred_head_type = pred_head_config["type"]
+
+        # Initialize image encoder
+        if self.encoder_config["uses_torch_hub"]:
+            self.encoder_config["torch_hub_force_reload"] = torch_hub_force_reload
+        # Create a copy of the config before deleting the key to preserve it for serialization
+        encoder_config_copy = self.encoder_config.copy()
+        del encoder_config_copy["uses_torch_hub"]
+        self.encoder = encoder_factory(**encoder_config_copy)
+
+        # Initialize the encoder for ray directions
+        ray_dirs_encoder_config = self.geometric_input_config["ray_dirs_encoder_config"]
+        ray_dirs_encoder_config["enc_embed_dim"] = self.encoder.enc_embed_dim
+        ray_dirs_encoder_config["patch_size"] = self.encoder.patch_size
+        self.ray_dirs_encoder = encoder_factory(**ray_dirs_encoder_config)
+
+        # Initialize the encoder for depth (normalized per view and values after normalization are scaled logarithmically)
+        depth_encoder_config = self.geometric_input_config["depth_encoder_config"]
+        depth_encoder_config["enc_embed_dim"] = self.encoder.enc_embed_dim
+        depth_encoder_config["patch_size"] = self.encoder.patch_size
+        self.depth_encoder = encoder_factory(**depth_encoder_config)
+
+        # Initialize the encoder for log scale factor of depth
+        depth_scale_encoder_config = self.geometric_input_config["scale_encoder_config"]
+        depth_scale_encoder_config["enc_embed_dim"] = self.encoder.enc_embed_dim
+        self.depth_scale_encoder = encoder_factory(**depth_scale_encoder_config)
+
+        # Initialize the encoder for camera rotation
+        cam_rot_encoder_config = self.geometric_input_config["cam_rot_encoder_config"]
+        cam_rot_encoder_config["enc_embed_dim"] = self.encoder.enc_embed_dim
+        self.cam_rot_encoder = encoder_factory(**cam_rot_encoder_config)
+
+        # Initialize the encoder for camera translation (normalized across all provided camera translations)
+        cam_trans_encoder_config = self.geometric_input_config[
+            "cam_trans_encoder_config"
+        ]
+        cam_trans_encoder_config["enc_embed_dim"] = self.encoder.enc_embed_dim
+        self.cam_trans_encoder = encoder_factory(**cam_trans_encoder_config)
+
+        # Initialize the encoder for log scale factor of camera translation
+        cam_trans_scale_encoder_config = self.geometric_input_config[
+            "scale_encoder_config"
+        ]
+        cam_trans_scale_encoder_config["enc_embed_dim"] = self.encoder.enc_embed_dim
+        self.cam_trans_scale_encoder = encoder_factory(**cam_trans_scale_encoder_config)
+        
+        # Initialize the fusion norm layer
+        self.fusion_norm_layer = fusion_norm_layer(self.encoder.enc_embed_dim)
+
+        # Initialize the Scale Token
+        # Used to scale the final scene predictions to metric scale
+        # During inference extended to (B, C, T), where T is the number of tokens (i.e., 1)
+        self.scale_token = nn.Parameter(torch.zeros(self.encoder.enc_embed_dim))
+        torch.nn.init.trunc_normal_(self.scale_token, std=0.02)
+
+        # Set the MLP layer config for the info sharing transformer
+        if info_sharing_mlp_layer_str == "mlp":
+            info_sharing_config["module_args"]["mlp_layer"] = Mlp
+        elif info_sharing_mlp_layer_str == "swiglufused":
+            info_sharing_config["module_args"]["mlp_layer"] = SwiGLUFFNFused
+        else:
+            raise ValueError(
+                f"Invalid info_sharing_mlp_layer_str: {info_sharing_mlp_layer_str}. Valid options: ['mlp', 'swiglufused']"
+            )
+
+        # Initialize the info sharing module (multi-view transformer)
+        self._initialize_info_sharing(info_sharing_config)
+
+        # Initialize the prediction heads
+        self._initialize_prediction_heads(pred_head_config)
+
+        # Initialize the final adaptors
+        self._initialize_adaptors(pred_head_config)
+
+        # Load pretrained weights
+        self._load_pretrained_weights()

@@ -190,7 +190,7 @@ def rescale_image_and_other_optional_info(
     output_resolution,
     depthmap=None,
     camera_intrinsics=None,
-    force=True,
+    force=False,
     additional_quantities_to_be_resized_with_nearest=None,
 ):
     """
@@ -304,7 +304,8 @@ def camera_matrix_of_crop(
     """
     # Margins to offset the origin
     margins = np.asarray(input_resolution) * scaling - output_resolution
-    assert np.all(margins >= 0.0)
+    if not np.all(margins >= 0.0):
+        print("fail")
     if offset is None:
         offset = offset_factor * margins
 

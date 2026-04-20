@@ -1,5 +1,5 @@
 # Random Seed
-seed: 0
+seed: 72
 # Maximum number of images per GPU (changes based on available GPU memory)
 max_num_of_imgs_per_gpu: 48
 # Accumulate gradient iterations (for increasing the effective batch size under memory constraints)
@@ -30,9 +30,9 @@ disable_cudnn_benchmark: true
 # Freeze the validation samples across all epochs
 freeze_val_samples_across_all_epochs: true
 # Test loss evaluation frequency
-eval_freq: 1
+eval_freq: 2
 # Frequency (number of epochs) to save checkpoint in checkpoint-last.pth
-save_freq: 1
+save_freq: 2
 # Frequency (number of epochs) to save checkpoint in checkpoint-%d.pth
 keep_freq: 10
 # Frequence (number of iterations) to print infos while training (includes tensorboard logging)
