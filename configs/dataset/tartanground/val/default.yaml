@@ -1,0 +1,27 @@
+dataset_str:
+  "TartanGroundWAI(
+    split='${dataset.tartanground.val.split}',
+    resolution=${dataset.tartanground.val.dataset_resolution},
+    principal_point_centered=${dataset.tartanground.val.principal_point_centered},
+    seed=${dataset.tartanground.val.seed},
+    transform='${dataset.tartanground.val.transform}',
+    data_norm_type='${dataset.tartanground.val.data_norm_type}',
+    ROOT='${dataset.tartanground.val.ROOT}',
+    dataset_metadata_dir='${dataset.tartanground.val.dataset_metadata_dir}',
+    overfit_num_sets=${dataset.tartanground.val.overfit_num_sets},
+    variable_num_views=${dataset.tartanground.val.variable_num_views},
+    num_views=${dataset.tartanground.val.num_views},
+    max_num_retries=0,
+    covisibility_thres=${dataset.tartanground.val.covisibility_thres})"
+split: 'val'
+dataset_resolution: ${dataset.resolution_val_tartanground}
+principal_point_centered: ${dataset.principal_point_centered}
+seed: 777
+transform: 'imgnorm'
+data_norm_type: ${model.data_norm_type}
+ROOT: /drobotics-ailab/bohao.zhang/datasets/TartanGround-unzip
+dataset_metadata_dir: ${mapanything_dataset_metadata_dir}
+overfit_num_sets: null
+variable_num_views: ${dataset.val.variable_num_views}
+num_views: ${dataset.num_views}
+covisibility_thres: 0.25

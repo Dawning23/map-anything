@@ -1,0 +1,18 @@
+# Large data, checkpoints, caches — not needed for code navigation in Cursor
+ckpt/
+data_processing/
+.cache/
+build/
+debug_by_vis/
+# Common heavy artifacts
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+*.npy
+*.npz
+
+tartanground_dataset/
+work_dirs/
+

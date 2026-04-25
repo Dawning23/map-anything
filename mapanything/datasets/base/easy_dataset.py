@@ -141,7 +141,7 @@ class EasyDataset:
             else:
                 # For fixed num_views, use a simple mapping
                 feature_to_batch_size_map = {
-                    0: max(1, max_num_of_images_per_gpu // self.num_views)
+                    i: max(1, max_num_of_images_per_gpu // self.num_views) for i in range(self.num_views)
                 }
 
             return DynamicBatchedMultiFeatureRandomSampler(

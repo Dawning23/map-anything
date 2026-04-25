@@ -178,5 +178,6 @@ ckpt
 *.md
 traing_datasets
 fisheye_converter.py
-tartanground
+tartanground_dataset
 debug_by_vis
+work_dirs

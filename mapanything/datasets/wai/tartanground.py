@@ -574,43 +574,73 @@ class TartanGroundWAI(BaseDataset):
         if self.debug_by_vis:
             all_pts = []
             all_colors = []
+            all_pts_cam = []
+            all_quats = []
+            all_trans = []
             for view in views:
                 mask = view["valid_mask"]
                 pts = view["pts3d"][mask]
                 colors = view["_debug_rgb"][mask]
                 all_pts.append(pts.reshape(-1, 3).astype(np.float32))
                 all_colors.append(colors.reshape(-1, 3).astype(np.uint8))
+
+                pts_cam = view["pts3d_cam"][mask]
+                all_pts_cam.append(pts_cam.reshape(-1, 3).astype(np.float32))
+                all_quats.append(view["camera_pose_quats"])
+                all_trans.append(view["camera_pose_trans"])
                 del view["_debug_rgb"]
 
             all_pts = np.concatenate(all_pts, axis=0)
             all_colors = np.concatenate(all_colors, axis=0)
             N = len(all_pts)
 
-            ply_path = f"/drobotics-ailab/bohao.zhang/Projects/map-anything/debug_by_vis/debug_pts3d_idx{idx}_{views[0]['label']}.ply"
-            os.makedirs(os.path.dirname(ply_path), exist_ok=True)
-            header = (
-                "ply\n"
-                "format binary_little_endian 1.0\n"
-                f"element vertex {N}\n"
-                "property float x\nproperty float y\nproperty float z\n"
-                "property uchar red\nproperty uchar green\nproperty uchar blue\n"
-                "end_header\n"
-            )
-            dtype = np.dtype([
-                ('x', '<f4'), ('y', '<f4'), ('z', '<f4'),
-                ('r', 'u1'), ('g', 'u1'), ('b', 'u1'),
-            ])
-            verts = np.empty(N, dtype=dtype)
-            verts['x'] = all_pts[:, 0]
-            verts['y'] = all_pts[:, 1]
-            verts['z'] = all_pts[:, 2]
-            verts['r'] = all_colors[:, 0]
-            verts['g'] = all_colors[:, 1]
-            verts['b'] = all_colors[:, 2]
-            with open(ply_path, 'wb') as f:
-                f.write(header.encode('ascii'))
-                f.write(verts.tobytes())
+            debug_dir = "/drobotics-ailab/bohao.zhang/Projects/map-anything/debug_by_vis"
+            os.makedirs(debug_dir, exist_ok=True)
+
+            def _save_ply(path, points, colors):
+                n = len(points)
+                header = (
+                    "ply\n"
+                    "format binary_little_endian 1.0\n"
+                    f"element vertex {n}\n"
+                    "property float x\nproperty float y\nproperty float z\n"
+                    "property uchar red\nproperty uchar green\nproperty uchar blue\n"
+                    "end_header\n"
+                )
+                dtype = np.dtype([
+                    ('x', '<f4'), ('y', '<f4'), ('z', '<f4'),
+                    ('r', 'u1'), ('g', 'u1'), ('b', 'u1'),
+                ])
+                verts = np.empty(n, dtype=dtype)
+                verts['x'] = points[:, 0]
+                verts['y'] = points[:, 1]
+                verts['z'] = points[:, 2]
+                verts['r'] = colors[:, 0]
+                verts['g'] = colors[:, 1]
+                verts['b'] = colors[:, 2]
+                with open(path, 'wb') as f:
+                    f.write(header.encode('ascii'))
+                    f.write(verts.tobytes())
+
+            ply_path = os.path.join(debug_dir, f"debug_pts3d_idx{idx}_{views[0]['label']}.ply")
+            _save_ply(ply_path, all_pts, all_colors)
             logger.info(f"Saved debug PLY ({N} points) to {ply_path}")
+
+            # Transform pts3d_cam to world coordinates using camera_pose_quats and camera_pose_trans
+            all_pts_cam_to_world = []
+            for pts_cam_i, quat_i, trans_i in zip(all_pts_cam, all_quats, all_trans):
+                R_c2w = Rotation.from_quat(quat_i).as_matrix().astype(np.float32)
+                pts_world_i = (pts_cam_i @ R_c2w.T) + trans_i[None, :]
+                all_pts_cam_to_world.append(pts_world_i)
+            all_pts_cam_to_world = np.concatenate(all_pts_cam_to_world, axis=0)
+
+            ply_path_cam2world = os.path.join(
+                debug_dir, f"debug_pts3d_cam2world_idx{idx}_{views[0]['label']}.ply"
+            )
+            _save_ply(ply_path_cam2world, all_pts_cam_to_world, all_colors)
+            logger.info(
+                f"Saved cam2world debug PLY ({len(all_pts_cam_to_world)} points) to {ply_path_cam2world}"
+            )
 
         return views
 

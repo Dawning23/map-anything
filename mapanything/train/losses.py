@@ -4337,12 +4337,12 @@ class FactoredGeometryScaleRegr3DPlusNormalGMLoss(FactoredGeometryScaleRegr3D):
 
     def compute_loss(self, batch, preds, **kw):
         (
-            gt_info,
-            pred_info,
-            valid_masks,
-            ambiguous_masks,
-            gt_metric_norm_factor,
-            pr_metric_norm_factor,
+            gt_info,                    # 使用gt_metric_norm_factor归一化后的结果
+            pred_info,                  # 预测的结果，不使用scale，再做归一化
+            valid_masks,                # dataset的真值
+            ambiguous_masks,            # 真值depth < 0 的点
+            gt_metric_norm_factor,      # 世界坐标系下的点做归一化，使用的scale
+            pr_metric_norm_factor,      # 预测的世界坐标系点（使用预测的scale），再做归一化，计算出来的scale
         ) = self.get_all_info(batch, preds, **kw)
         n_views = len(batch)
 
